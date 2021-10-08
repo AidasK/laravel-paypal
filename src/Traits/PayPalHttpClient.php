@@ -5,6 +5,7 @@ namespace Srmklive\PayPal\Traits;
 use Exception;
 use GuzzleHttp\Client as HttpClient;
 use Psr\Http\Message\StreamInterface;
+use GuzzleHttp\Exception\ClientException as HttpClientException;
 use RuntimeException;
 use Throwable;
 
@@ -98,8 +99,11 @@ trait PayPalHttpClient
             }
 
             return $this->client->post($this->apiUrl, $options)->getBody();
-        } catch (Throwable $t) {
-            throw new RuntimeException($t->getRequest().' '.$t->getResponse());
+        } catch (HttpClientException $e) {
+            if ($e->hasResponse()) {
+                throw new RuntimeException($e->getMessage() . ' body ' . $e->getRequest()->getBody() . ' status ' . $e->getResponse()->getStatusCode() . ' ' . $e->getResponse()->getBody());
+            }
+            throw new RuntimeException($e->getMessage() . ' body ' . $e->getRequest()->getBody() . ' #' . $e->getCode());
         }
     }
 
@@ -123,12 +127,13 @@ trait PayPalHttpClient
 
             return $this->retrieveData($method, $response);
         } catch (Throwable $t) {
-            $message = collect($t->getTrace())->implode('\n');
-        }
 
-        return [
-            'type'    => 'error',
-            'message' => $message,
-        ];
+            return [
+                'type'    => 'error',
+                'message' => $t->getMessage(),
+                'code' => $t->getCode(),
+                'trace' => collect($t->getTrace())->implode('\n'),
+            ];
+        }
     }
 }
